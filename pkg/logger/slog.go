@@ -16,16 +16,28 @@ type SlogAdapter struct {
 	Logger *slog.Logger
 }
 
-func NewSlogAdapter() *SlogAdapter {
-	slogLogger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+func NewSlogAdapter(debug bool) *SlogAdapter {
+	// logOpts is logger options
+	logOpts := &slog.HandlerOptions{
+		// remove the timestamp from the default logger
 		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
 			if a.Key == slog.TimeKey {
 				return slog.Attr{}
 			}
 			return a
 		},
-		AddSource: true,
-	}))
+	}
+
+	if debug {
+		logOpts.Level = slog.LevelDebug
+		logOpts.AddSource = true
+	} else {
+		logOpts.Level = slog.LevelInfo
+		logOpts.AddSource = false
+	}
+
+	slogLogger := slog.New(slog.NewJSONHandler(os.Stdout, logOpts))
+
 	return &SlogAdapter{
 		Logger: slogLogger,
 	}

@@ -14,10 +14,10 @@ type ILogger interface {
 	Fatal(message string, args ...interface{})
 }
 
-func GetInstance() ILogger {
+func GetInstance(debug bool) ILogger {
 	if logInstance != nil {
 		return logInstance
 	}
-	logInstance = NewSlogAdapter()
+	logInstance = NewSlogAdapter(debug)
 	return logInstance
 }
