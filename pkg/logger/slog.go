@@ -18,7 +18,16 @@ type SlogAdapter struct {
 
 func NewSlogAdapter(debug bool) *SlogAdapter {
 	// logOpts is logger options
-	logOpts := &slog.HandlerOptions{}
+	logOpts := &slog.HandlerOptions{
+		// remove the timestamp from the default logger
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				return slog.Attr{}
+			}
+			return a
+		},
+	}
+
 	if debug {
 		logOpts.Level = slog.LevelDebug
 		logOpts.AddSource = true

@@ -2,10 +2,13 @@ package app
 
 import (
 	"fmt"
-	"gophermap/internal/db"
-	"gophermap/pkg/logger"
 	"net/http"
 	"os"
+
+	"gophermap/internal/db"
+	httpx "gophermap/internal/http"
+	"gophermap/internal/services"
+	"gophermap/pkg/logger"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -29,19 +32,22 @@ type DBConfig struct {
 // App contains the top level components of the application
 // includes the router, database, and other services
 type App struct {
-	router        *chi.Mux
+	Router        *chi.Mux
 	server        *http.Server
 	db            db.IDatabase
 	dataStoreFile *os.File
 	logger        logger.ILogger
+	MapInstance   *services.Map
 }
 
 func NewApp(cfg *AppConfig, logger logger.ILogger) *App {
 	app := &App{}
 
+	app.logger = logger
+	app.MapInstance = services.NewMap()
+
 	app.initRouter()
-	app.initLogger(logger)
-	logger.Error("test", "config", cfg)
+
 	app.initServer(cfg.Port)
 
 	if cfg.PersistentType == "logfile" {
@@ -58,17 +64,15 @@ func NewApp(cfg *AppConfig, logger logger.ILogger) *App {
 }
 
 func (a *App) initRouter() {
-	a.router = chi.NewRouter()
-}
-
-func (a *App) initLogger(logger logger.ILogger) {
-	a.logger = logger
+	a.Router = chi.NewRouter()
+	a.Router.Use(a.logger.GetHTTPMiddleWare())
+	httpx.RegisterRoutes(a.MapInstance, a.Router)
 }
 
 func (a *App) initDataStoreFile() {
-	dataStoreFile, err := os.OpenFile("ds.log", os.O_APPEND|os.O_CREATE|os.O_RDWR, 0755)
+	dataStoreFile, err := os.OpenFile("../data/ds.log", os.O_APPEND|os.O_CREATE|os.O_RDWR, 0755)
 	if err != nil {
-		a.logger.Fatal("Failed to open data store file")
+		a.logger.Fatal(err.Error())
 	}
 
 	a.dataStoreFile = dataStoreFile
@@ -77,7 +81,7 @@ func (a *App) initDataStoreFile() {
 func (a *App) initServer(port int) {
 	a.server = &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
-		Handler: a.router,
+		Handler: a.Router,
 	}
 }
 
