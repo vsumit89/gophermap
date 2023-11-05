@@ -7,6 +7,6 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func RegisterRoutes(mapInstance *services.Map, router *chi.Mux) {
-	handlers.RegisterMapHandler(mapInstance, router)
+func RegisterRoutes(mapInstance *services.Map, router *chi.Mux, ts services.TransactionLogger) {
+	handlers.RegisterMapHandler(mapInstance, router, ts)
 }

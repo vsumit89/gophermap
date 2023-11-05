@@ -1,7 +1,7 @@
 package services
 
 import (
-	"errors"
+	"gophermap/internal/custom_error"
 	"sync"
 )
 
@@ -9,11 +9,6 @@ type Map struct {
 	store map[string]string
 	sync.RWMutex
 }
-
-// possible errors in map module
-var (
-	ErrKeyNotFound = errors.New("key not found")
-)
 
 func NewMap() *Map {
 	return &Map{
@@ -32,8 +27,27 @@ func (m *Map) Get(key string) (string, error) {
 	defer m.RUnlock()
 	value, ok := m.store[key]
 	if !ok {
-		return "", ErrKeyNotFound
+		return "", &custom_error.AppError{
+			Code:    404,
+			Message: "key not found",
+		}
 	}
 
 	return value, nil
+}
+
+func (m *Map) Delete(key string) error {
+	m.Lock()
+	defer m.Unlock()
+
+	_, ok := m.store[key]
+	if !ok {
+		return &custom_error.AppError{
+			Code:    404,
+			Message: "key not found",
+		}
+	}
+
+	delete(m.store, key)
+	return nil
 }

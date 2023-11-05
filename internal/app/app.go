@@ -3,9 +3,7 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"os"
 
-	"gophermap/internal/db"
 	httpx "gophermap/internal/http"
 	"gophermap/internal/services"
 	"gophermap/pkg/logger"
@@ -32,12 +30,11 @@ type DBConfig struct {
 // App contains the top level components of the application
 // includes the router, database, and other services
 type App struct {
-	Router        *chi.Mux
-	server        *http.Server
-	db            db.IDatabase
-	dataStoreFile *os.File
-	logger        logger.ILogger
-	MapInstance   *services.Map
+	Router            *chi.Mux
+	server            *http.Server
+	logger            logger.ILogger
+	MapInstance       *services.Map
+	TransactionLogger services.TransactionLogger
 }
 
 func NewApp(cfg *AppConfig, logger logger.ILogger) *App {
@@ -45,20 +42,40 @@ func NewApp(cfg *AppConfig, logger logger.ILogger) *App {
 
 	app.logger = logger
 	app.MapInstance = services.NewMap()
+	app.TransactionLogger = services.NewTransactionLogger(cfg.PersistentType)
 
 	app.initRouter()
 
 	app.initServer(cfg.Port)
 
-	if cfg.PersistentType == "logfile" {
-		app.initDataStoreFile()
-	} else {
-		app.db = db.NewDBService()
-		err := app.db.Connect()
-		if err != nil {
-			app.logger.Fatal("Failed to connect to database")
-		}
+	err := app.TransactionLogger.Init()
+	if err != nil {
+		app.logger.Error("error while initializing transaction logger", "error", err.Error())
+		app.logger.Warn("continuing without transaction logger")
 	}
+
+	events, errChan := app.TransactionLogger.ReadEvents()
+	// read events from the event channel and update the map
+	go func() {
+		for {
+			select {
+			case event := <-events:
+				if event.EventType == services.EventPut {
+					app.MapInstance.Put(event.Key, event.Value)
+				} else {
+					app.MapInstance.Delete(event.Key)
+				}
+			case err := <-errChan:
+				if err != nil {
+					if err.Error() == "input parse error: EOF" {
+						app.logger.Info("keys from file transaction logger successfully read")
+					} else {
+						app.logger.Error("error while reading events from transaction logger", "error", err.Error())
+					}
+				}
+			}
+		}
+	}()
 
 	return app
 }
@@ -66,16 +83,7 @@ func NewApp(cfg *AppConfig, logger logger.ILogger) *App {
 func (a *App) initRouter() {
 	a.Router = chi.NewRouter()
 	a.Router.Use(a.logger.GetHTTPMiddleWare())
-	httpx.RegisterRoutes(a.MapInstance, a.Router)
-}
-
-func (a *App) initDataStoreFile() {
-	dataStoreFile, err := os.OpenFile("../data/ds.log", os.O_APPEND|os.O_CREATE|os.O_RDWR, 0755)
-	if err != nil {
-		a.logger.Fatal(err.Error())
-	}
-
-	a.dataStoreFile = dataStoreFile
+	httpx.RegisterRoutes(a.MapInstance, a.Router, a.TransactionLogger)
 }
 
 func (a *App) initServer(port int) {

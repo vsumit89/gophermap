@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"gophermap/pkg/helper"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -11,5 +12,7 @@ func (m *mapHttpHandler) PutKey(w http.ResponseWriter, r *http.Request) {
 	value := chi.URLParam(r, "value")
 	m.mapInstance.Put(key, value)
 
-	w.WriteHeader(http.StatusCreated)
+	m.tsLogger.WritePut(key, value)
+
+	helper.SendJSONResponse(w, http.StatusOK, "success", nil)
 }
