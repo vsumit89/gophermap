@@ -1,0 +1,10 @@
+app_name: gophermap
+version: 0.0.1
+persistent_type: logfile
+port: 8080
+database:
+  host: localhost
+  port: 4436
+  username: postgres
+  password: postgres
+  ssl_mode: false
